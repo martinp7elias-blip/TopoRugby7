@@ -16,4 +16,41 @@ function tab(id,btn){['vivo','partidos','ligas','stats'].forEach(t=>document.get
 render();
 async function loadReal(){try{let k=localStorage.getItem('k');let r=await fetch('https://v1.rugby.api-sports.io/games?date=2026-11-08',{headers:{'x-apisports-key':k}});let j=await r.json();M=j.response.map((g,i)=>{let st=g.status?.short||'';let s='live',min='EN VIVO';if(st=='FT'||st=='AET'){s='finished';min='FINAL'}else if(st=='NS'){s='upcoming';min=(g.date||'').slice(11,16)}else{min=st};return{id:g.id,l:g.league.name,s:s,min:min,h:g.teams.home.name,a:g.teams.away.name,hs:g.scores.home??0,as:g.scores.away??0,st:'',gid:g.id}});render();alert('Listo! '+M.length+' partidos')}catch(e){alert('Error: '+e.message)}}
 function cerrar(){let m=document.getElementById('modal');if(m)m.remove()}
-async function showStats(gid,h,a){let f=M.find(x=>x.gid==gid||x.id==gid)||{};h=f.h||f.home||f.homeName||h||'Local';a=f.a||f.away||f.awayName||a||'Visitante';let d=document.createElement('div');d.id='modal';d.style='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;overflow:auto;padding:16px';d.innerHTML='<div style="background:#111827;color:white;border-radius:16px;padding:16px;max-width:600px;margin:auto"><button onclick="cerrar()" style="float:right;background:#ef4444;color:white;border:0;padding:8px 12px;border-radius:99px">X Cerrar</button><h2>'+h+' vs '+a+'</h2><p>Cargando...</p></div>';document.body.appendChild(d);try{let k=localStorage.getItem('k');let H={headers:{'x-apisports-key':k}};let ev=await (await fetch('https://v1.rugby.api-sports.io/games/events?game='+gid,H)).json();let li=await (await fetch('https://v1.rugby.api-sports.io/games/lineups?game='+gid,H)).json();let st=await (await fetch('https://v1.rugby.api-sports.io/games/statistics?game='+gid,H)).json();let tries=ev.response.filter(e=>e.type=='Try').map(e=>'<div>TRY '+e.minute+' - '+e.player.name+' ('+e.team.name+')</div>').join('')||'Sin tries';let forms=li.response.map(t=>'<h3>'+t.team.name+'</h3>'+t.startXI.map(p=>p.player.name+' - '+p.player.pos).join('<br>')).join('')||'Formacion no disponible';let stats=st.response.map(t=>'<h3>'+t.team.name+'</h3>'+t.statistics.map(s=>s.type+': '+s.value).join('<br>')).join('')||'Stats no disponibles';d.querySelector('div').innerHTML='<button onclick="cerrar()" style="float:right;background:#ef4444;color:white;border:0;padding:8px 12px;border-radius:99px">X Cerrar</button><h2>'+h+' vs '+a+'</h2><h3>Tries</h3>'+tries+'<h3>Formaciones</h3>'+forms+'<h3>Estadisticas</h3>'+stats}catch(e){d.querySelector('div').innerHTML+='<p>Error: '+e.message+'</p>'}}</script></body></html>
+async function showStats(gid,h,a){
+let f=M.find(x=>x.gid==gid||x.id==gid)||{};h=f.h||f.home||f.homeName||h||'Local';a=f.a||f.away||f.awayName||a||'Visitante';
+let d=document.getElementById('modal')||document.createElement('div');d.id='modal';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px';d.innerHTML='<div style="background:#0f172a;color:#fff;width:100%;max-width:480px;border-radius:16px;padding:18px;max-height:85vh;overflow:auto"><div style="display:flex;justify-content:space-between"><b>'+h+' vs '+a+'</b><button onclick="document.getElementById(\'modal\').remove()" style="background:#ef4444;color:#fff;border:0;padding:6px 12px;border-radius:999px">X Cerrar</button></div><div id="espnBody" style="margin-top:12px;font-size:14px;line-height:1.6">Buscando en ESPN...</div></div>';document.body.appendChild(d);
+let norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,'').trim();
+let nh=norm(h),na=norm(a);
+let leagues=['271937','270557','271941','271938','270559','271936','271940','271939','270558','271933','271934','271935','270560','270561'];
+let found=null;
+for(let lg of leagues){
+for(let off=0;off<8;off++){
+let dt=new Date();dt.setDate(dt.getDate()-off);let ymd=dt.getFullYear()+''+String(dt.getMonth()+1).padStart(2,'0')+''+String(dt.getDate()).padStart(2,'0');
+try{
+let r=await fetch('https://site.api.espn.com/apis/site/v2/sports/rugby/'+lg+'/scoreboard?dates='+ymd);let j=await r.json();
+let evs=j.events||[];
+let ev=evs.find(e=>{let n=(e.competitions?.[0]?.competitors||[]).map(c=>norm(c.team?.displayName||c.team?.shortDisplayName||''));return (n.some(x=>x.includes(nh)||nh.includes(x))&&n.some(x=>x.includes(na)||na.includes(x)))});
+if(ev){found={id:ev.id,lg:lg,ev:ev};break;}
+}catch(e){}
+}
+if(found)break;
+}
+let body=document.getElementById('espnBody');
+if(!found){body.innerHTML='<b>ESPN no tiene detalle para este partido.</b><br><br>Esto pasa en URBA, Súper Rugby Américas o League One Japón.<br>Para Premiership, Top 14, URC, Rugby Championship y Autumn Nations sí debería aparecer. Probá de nuevo en 1 minuto.';return;}
+try{
+let r=await fetch('https://site.api.espn.com/apis/site/v2/sports/rugby/'+found.lg+'/summary?event='+found.id);let j=await r.json();
+let det=j.details||j.keyEvents||[];
+let tries=det.filter(x=>((x.type?.text||x.type?.name||x.text||'').toLowerCase().includes('try')));
+let triesHtml=tries.length?tries.map(t=>'<p>🏉 '+(t.clock?.displayValue||'')+' - '+(t.team?.displayName||'')+' - '+(t.athletesInvolved?.[0]?.displayName||t.text||'Try')+'</p>').join(''):'<p>Sin tries registrados en ESPN para este partido.</p>';
+let ros=j.rosters||j.boxscore?.teams?.map(t=>({team:t.team,roster:t.roster}))||[];
+let formHtml='';
+if(j.rosters&&j.rosters.length){formHtml=j.rosters.map(rr=>'<b>'+(rr.team?.displayName||'')+'</b><br>'+(rr.roster||[]).slice(0,15).map(p=> (p.position?.abbreviation||'')+' '+p.athlete?.displayName).join('<br>')).join('<br><br>');}
+else if(j.gameInfo?.venue){formHtml='<p>Estadio: '+j.gameInfo.venue.fullName+'</p>';}
+else formHtml='<p>Formación no disponible en ESPN para este partido.</p>';
+let statsHtml='';
+let bx=j.boxscore?.teams||[];
+if(bx.length){statsHtml=bx.map(t=>'<b>'+t.team.displayName+'</b><br>'+(t.statistics||[]).slice(0,8).map(s=>s.displayValue+' '+s.name).join('<br>')).join('<br><br>');}
+else statsHtml='<p>Stats no disponibles en ESPN.</p>';
+body.innerHTML='<h3>🏉 Tries</h3>'+triesHtml+'<h3>👥 Formaciones</h3>'+formHtml+'<h3>📊 Estadísticas</h3>'+statsHtml+'<p style="opacity:.6;font-size:12px;margin-top:12px">Fuente: ESPN</p>';
+}catch(e){body.innerHTML='<b>No se pudo leer el detalle de ESPN.</b><br>Probá de nuevo en 1 minuto. Es una API no oficial y a veces corta.';}
+}</script></body></html>
