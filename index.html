@@ -21,10 +21,11 @@ let f=M.find(x=>x.gid==gid||x.id==gid)||{};h=f.h||f.home||f.homeName||h||'Local'
 let d=document.getElementById('modal')||document.createElement('div');d.id='modal';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px';d.innerHTML='<div style="background:#0f172a;color:#fff;width:100%;max-width:480px;border-radius:16px;padding:18px;max-height:85vh;overflow:auto"><div style="display:flex;justify-content:space-between"><b>'+h+' vs '+a+'</b><button onclick="document.getElementById(\'modal\').remove()" style="background:#ef4444;color:#fff;border:0;padding:6px 12px;border-radius:999px">X Cerrar</button></div><div id="espnBody" style="margin-top:12px;font-size:14px;line-height:1.6">Buscando en ESPN...</div></div>';document.body.appendChild(d);
 let norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,'').trim();
 let nh=norm(h),na=norm(a);
-let leagues=['271937','270557','271941','271938','270559','271936','271940','271939','270558','271933','271934','271935','270560','270561'];
+let comp=(f.c||f.league||'').toLowerCase();
+let leagues=comp.includes('top 14')?['270559']:comp.includes('premiership')?['270557']:comp.includes('urc')||comp.includes('united')?['271937']:comp.includes('championship')||comp.includes('nations')?['271941','271938']:['270559','270557','271937','271941'];
 let found=null;
 for(let lg of leagues){
-for(let off=0;off<8;off++){
+for(let off=0;off<3;off++){
 let dt=new Date();dt.setDate(dt.getDate()-off);let ymd=dt.getFullYear()+''+String(dt.getMonth()+1).padStart(2,'0')+''+String(dt.getDate()).padStart(2,'0');
 try{
 let r=await fetch('https://site.api.espn.com/apis/site/v2/sports/rugby/'+lg+'/scoreboard?dates='+ymd);let j=await r.json();
